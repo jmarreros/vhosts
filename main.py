@@ -37,16 +37,39 @@ def remove_virtual_host(basename):
 
 def create_virtual_host(directories, basename):
     path_site = PATH_SITES + directories
+
+    #Validate if directory already exists
+    if os.path.exists(path_site):
+        print('Directory already exists')
+        exit()
     # Create directory
     os.makedirs(path_site, exist_ok=False)
+
+    #Validate if virtual host already exists
+    with open(VHOST_FILE, 'r') as file:
+        lines = file.readlines()
+        for line in lines:
+            if f'#{basename}' in line:
+                print('Virtual host already exists')
+                exit()
     # Create virtual host file called httpd-vhost.conf
     with open(VHOST_FILE, 'a') as file:
         file.write(TEMPLATE.format(PATH_HOST=path_site, NAME_HOST=basename))
+        # Restart apache server
+        os.system('brew services restart httpd')
+
+    #Validate if virtual host already exists in hosts file
+    with open('/etc/hosts', 'r') as file:
+        lines = file.readlines()
+        for line in lines:
+            if f'{basename}.local' in line:
+                print('Virtual host already exists in hosts file')
+                exit()
+
     # Add virtual host to host file
     command = f'echo "\n127.0.0.1    {basename}.local" | sudo tee -a /etc/hosts'
     subprocess.run(command, shell=True, check=True)
-    # Restart apache server
-    os.system('brew services restart httpd')
+
     print('Virtual host created successfully')
 
 
@@ -81,15 +104,16 @@ if __name__ == '__main__':
         remove_virtual_host(virtual_host_name)
     elif args.path or args.wordpress:
         virtual_host_path = args.path or args.wordpress
+
+        # If virtual_host_path has the text '.local' remove it
+        if '.local' in virtual_host_path:
+            virtual_host_path = virtual_host_path.replace('.local', '')
+
         virtual_host_name = os.path.basename(virtual_host_path)
 
         if virtual_host_path == '' or virtual_host_name == virtual_host_path:
             print('Ingresa una ruta correcta con el nombre del host y la carpeta')
             exit()
-
-        # If virtual_host_name has the text '.local' remove it
-        if '.local' in virtual_host_name:
-            virtual_host_name = virtual_host_name.replace('.local', '')
 
         create_virtual_host(virtual_host_path, virtual_host_name)
         if args.wordpress:
